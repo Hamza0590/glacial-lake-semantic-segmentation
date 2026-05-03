@@ -1,0 +1,11 @@
+# Ignore the data and checkpoints at the root
+/checkpoints/
+
+# Ignore the data and checkpoints inside the subfolder
+/glacial_lake_segmentation/data/
+/glacial_lake_segmentation/checkpoints/
+
+# Common AI/Python extras to ignore
+**/__pycache__/
+*.pth
+*.h5

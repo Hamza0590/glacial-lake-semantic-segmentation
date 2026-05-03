@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Glacial Lake Segmentation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2e3248;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --accent:    #4f8ef7;
+      --accent-h:  #3b7de8;
+      --success:   #22c55e;
+      --error:     #ef4444;
+      --warn:      #f59e0b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    header p  { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+
+    main {
+      flex: 1;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 1rem;
+    }
+
+    label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+
+    select, input[type="file"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+      min-width: 180px;
+    }
+    select:focus, input[type="file"]:focus { outline: 2px solid var(--accent); }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover  { background: var(--accent-h); }
+    button:active { transform: scale(0.98); }
+
+    #status-bar {
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      background: var(--bg);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      min-height: 2.2rem;
+    }
+    #status-bar.loading { color: var(--accent);  border-color: var(--accent); }
+    #status-bar.error   { color: var(--error);   border-color: var(--error); }
+    #status-bar.success { color: var(--success); border-color: var(--success); }
+
+    #results { display: none; }
+
+    .coverage {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--success);
+      margin-bottom: 1rem;
+    }
+
+    .img-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .img-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+    }
+    .img-card span {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .img-card img {
+      max-width: 100%;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    /* Health section */
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .health-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .health-card .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+    .health-card .value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: var(--accent);
+      color: #fff;
+      margin: 0.15rem 0.1rem;
+    }
+    .badge.none { background: var(--border); color: var(--muted); }
+
+    footer {
+      text-align: center;
+      padding: 1rem 2rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Glacial Lake Segmentation</h1>
+  <p>Upload a Sentinel-2 image patch to detect and segment glacial lakes</p>
+</header>
+
+<main>
+
+  <!-- Section 1: Predict -->
+  <section>
+    <h2>Run Segmentation</h2>
+
+    <div class="form-row">
+      <label>
+        Select Model
+        <select id="model-select">
+          <option value="unet">U-Net</option>
+          <option value="simple_cnn">Simple CNN</option>
+          <option value="aspp_segnet">ASPP SegNet</option>
+        </select>
+      </label>
+
+      <label>
+        Input Image
+        <input type="file" id="image-input" accept="image/*" />
+      </label>
+
+      <button id="run-btn" onclick="runSegmentation()">Run Segmentation</button>
+    </div>
+
+    <div id="status-bar">Ready. Select a model and image, then click Run Segmentation.</div>
+
+    <div id="results">
+      <div class="coverage" id="coverage-text"></div>
+      <div class="img-grid">
+        <div class="img-card">
+          <span>Binary Mask</span>
+          <img id="mask-img" src="" alt="Binary Mask" />
+        </div>
+        <div class="img-card">
+          <span>Overlay</span>
+          <img id="overlay-img" src="" alt="Overlay" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Health -->
+  <section>
+    <h2>API Health</h2>
+    <div class="health-grid" id="health-grid">
+      <div class="health-card"><div class="label">Status</div><div class="value" id="h-status">—</div></div>
+      <div class="health-card"><div class="label">Device</div><div class="value" id="h-device">—</div></div>
+      <div class="health-card"><div class="label">Available Models</div><div class="value" id="h-available">—</div></div>
+      <div class="health-card"><div class="label">Loaded in Memory</div><div class="value" id="h-loaded">—</div></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Paper: Multi-Sensor Fusion and Deep Learning for Glacial Lake Segmentation, IEEE JSTARS 2025
+</footer>
+
+<script>
+  const API = '';  // same origin
+
+  function setStatus(msg, type='idle') {
+    const el = document.getElementById('status-bar');
+    el.textContent = msg;
+    el.className = type;
+  }
+
+  function renderBadges(items) {
+    if (!items || items.length === 0) return '<span class="badge none">none</span>';
+    return items.map(m => `<span class="badge">${m}</span>`).join('');
+  }
+
+  async function loadHealth() {
+    try {
+      const res = await fetch(`${API}/health`);
+      const data = await res.json();
+      document.getElementById('h-status').textContent   = data.status;
+      document.getElementById('h-device').textContent   = data.device;
+      document.getElementById('h-available').innerHTML  = renderBadges(data.available_models);
+      document.getElementById('h-loaded').innerHTML     = renderBadges(data.loaded_models);
+    } catch (e) {
+      document.getElementById('h-status').textContent = 'API unreachable';
+    }
+  }
+
+  async function runSegmentation() {
+    const fileInput  = document.getElementById('image-input');
+    const modelName  = document.getElementById('model-select').value;
+    const resultsDiv = document.getElementById('results');
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+      setStatus('Please select an image file first.', 'error');
+      return;
+    }
+
+    setStatus('Running inference...', 'loading');
+    resultsDiv.style.display = 'none';
+
+    const form = new FormData();
+    form.append('image', fileInput.files[0]);
+    form.append('model_name', modelName);
+
+    try {
+      const res = await fetch(`${API}/predict`, { method: 'POST', body: form });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setStatus(`Error: ${err.detail}`, 'error');
+        return;
+      }
+
+      const data = await res.json();
+
+      document.getElementById('coverage-text').textContent =
+        `Lake Coverage: ${data.lake_coverage_percent.toFixed(2)}%`;
+
+      document.getElementById('mask-img').src    = `data:image/png;base64,${data.mask_image_base64}`;
+      document.getElementById('overlay-img').src = `data:image/png;base64,${data.overlay_image_base64}`;
+
+      resultsDiv.style.display = 'block';
+      setStatus(`Inference complete using ${data.model_name}.`, 'success');
+
+      await loadHealth();
+    } catch (e) {
+      setStatus(`Network error: ${e.message}`, 'error');
+    }
+  }
+
+  // Auto-load health on page open
+  window.addEventListener('load', loadHealth);
+</script>
+
+</body>
+</html>
