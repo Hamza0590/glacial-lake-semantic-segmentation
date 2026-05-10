@@ -1,6 +1,7 @@
 import io
 import base64
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -193,12 +194,28 @@ async def predict(image: UploadFile, model_name: str = Form(...), extract_featur
             handles.append(model.aspp.b4.register_forward_hook(get_hook("b4")))
             handles.append(model.aspp.b5_conv.register_forward_hook(get_hook("b5")))
             handles.append(model.aspp.fusion.register_forward_hook(get_hook("concat")))
+        elif model_name == "unet":
+            handles.append(model.enc1.register_forward_hook(get_hook("enc1")))
+            handles.append(model.enc2.register_forward_hook(get_hook("enc2")))
+            handles.append(model.enc3.register_forward_hook(get_hook("enc3")))
+            handles.append(model.enc4.register_forward_hook(get_hook("enc4")))
+            handles.append(model.bottleneck.register_forward_hook(get_hook("bottleneck")))
+            handles.append(model.dec4.register_forward_hook(get_hook("dec4")))
+            handles.append(model.dec3.register_forward_hook(get_hook("dec3")))
+            handles.append(model.dec2.register_forward_hook(get_hook("dec2")))
+            handles.append(model.dec1.register_forward_hook(get_hook("dec1")))
 
     # ── Inference ─────────────────────────────────────────────────────────────
     # Models output probabilities [0, 1] directly (sigmoid is in the head).
     # Threshold at 0.5 → binary mask {0, 1} as per paper.
+    start_time = time.time()
     with torch.no_grad():
         probs = model(tensor)                           # (1, 1, H, W) probabilities [0, 1]
+    
+    if config.DEVICE == "cuda":
+        torch.cuda.synchronize()
+    end_time = time.time()
+    inference_time_ms = (end_time - start_time) * 1000.0
 
     for h in handles:
         h.remove()
@@ -229,7 +246,8 @@ async def predict(image: UploadFile, model_name: str = Form(...), extract_featur
         mask_image_base64=mask_b64,
         colored_mask_base64=colored_mask_b64,
         overlay_image_base64=overlay_b64,
-        feature_maps=feature_maps if extract_features else None
+        feature_maps=feature_maps if extract_features else None,
+        inference_time_ms=inference_time_ms
     )
 
 

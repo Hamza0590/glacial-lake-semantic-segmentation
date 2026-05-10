@@ -9,6 +9,7 @@ class PredictionResponse(BaseModel):
     colored_mask_base64: str      # base64-encoded RGB PNG: lake=cyan, background=black
     overlay_image_base64: str     # base64-encoded RGB PNG with red contour overlay
     feature_maps: Optional[dict[str, str]] = None  # Mapping of layer ID to base64 image
+    inference_time_ms: float = 0.0
 
 
 class HealthResponse(BaseModel):

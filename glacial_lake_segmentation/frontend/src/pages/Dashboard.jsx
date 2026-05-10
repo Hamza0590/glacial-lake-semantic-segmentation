@@ -1,33 +1,33 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Activity, Layers, Map as MapIcon, Settings, Download,
+import {
+  Activity, Layers, Map as MapIcon, Download,
   Upload, Cpu, RefreshCcw, Home
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const VIEW_MODES = [
-  { id: 'mask',    label: 'Binary Mask' },
-  { id: 'colored', label: 'Lake Map'    },
-  { id: 'overlay', label: 'Overlay'     },
+  { id: 'mask', label: 'Binary Mask' },
+  { id: 'colored', label: 'Lake Map' },
+  { id: 'overlay', label: 'Overlay' },
 ];
 
 const MODEL_MAP = {
-  'U-Net':       'unet',
-  'Simple CNN':  'simple_cnn',
+  'U-Net': 'unet',
+  'Simple CNN': 'simple_cnn',
   'ASPP-SegNet': 'aspp_segnet',
 };
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [selectedModel, setSelectedModel] = useState('unet');
-  const [isProcessing,  setIsProcessing]  = useState(false);
-  const [selectedFile,  setSelectedFile]  = useState(null);
-  const [previewUrl,    setPreviewUrl]    = useState(null);
-  const [result,        setResult]        = useState(null);
-  const [viewMode,      setViewMode]      = useState('mask');
-  const [mousePos,      setMousePos]      = useState({ x: -1000, y: -1000 });
-  const [logs,          setLogs]          = useState([
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [result, setResult] = useState(null);
+  const [viewMode, setViewMode] = useState('mask');
+  const [mousePos, setMousePos] = useState({ x: -1000, y: -1000 });
+  const [logs, setLogs] = useState([
     '[04:12:01] SEED INITIALIZED (42)',
     '[04:12:02] READY FOR INFERENCE.',
   ]);
@@ -72,8 +72,8 @@ export default function Dashboard() {
 
   const getDisplaySrc = () => {
     if (!result) return null;
-    if (viewMode === 'mask')    return result.mask_image_base64    ? `data:image/png;base64,${result.mask_image_base64}`    : null;
-    if (viewMode === 'colored') return result.colored_mask_base64  ? `data:image/png;base64,${result.colored_mask_base64}`  : null;
+    if (viewMode === 'mask') return result.mask_image_base64 ? `data:image/png;base64,${result.mask_image_base64}` : null;
+    if (viewMode === 'colored') return result.colored_mask_base64 ? `data:image/png;base64,${result.colored_mask_base64}` : null;
     if (viewMode === 'overlay') return result.overlay_image_base64 ? `data:image/png;base64,${result.overlay_image_base64}` : null;
     return null;
   };
@@ -104,9 +104,6 @@ export default function Dashboard() {
           <div style={{ color: '#b60058' }}><MapIcon size={24} /></div>
           <div style={{ color: '#5b3f46', cursor: 'pointer' }} onClick={() => navigate('/visualization')}><Layers size={24} /></div>
           <div style={{ color: '#5b3f46', cursor: 'pointer' }} onClick={() => navigate('/comparison')}><Activity size={24} /></div>
-        </div>
-        <div style={{ marginTop: 'auto' }}>
-          <div style={{ color: '#5b3f46', cursor: 'pointer' }}><Settings size={24} /></div>
         </div>
       </aside>
 
@@ -197,8 +194,8 @@ export default function Dashboard() {
                 letterSpacing: '0.1em',
                 border: '1px solid #CBD5E0',
                 background: viewMode === vm.id && result ? '#b60058' : 'white',
-                color:      viewMode === vm.id && result ? 'white'   : '#5b3f46',
-                fontWeight: viewMode === vm.id && result ? 700       : 400,
+                color: viewMode === vm.id && result ? 'white' : '#5b3f46',
+                fontWeight: viewMode === vm.id && result ? 700 : 400,
                 cursor: result ? 'pointer' : 'not-allowed',
                 opacity: result ? 1 : 0.4,
                 transition: 'all 0.15s',
@@ -239,7 +236,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Image Frame ── */}
-        <div 
+        <div
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           style={{
@@ -385,6 +382,22 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Inference Speed */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
+              <span className="mono" style={{ fontSize: '9px', textTransform: 'uppercase', color: '#5b3f46' }}>Inference Speed</span>
+              <span className="mono" style={{ fontSize: '20px', fontWeight: 700, color: '#0ea5e9' }}>
+                {result ? `${result.inference_time_ms.toFixed(1)} ms` : '0.0 ms'}
+              </span>
+            </div>
+            <div style={{ height: '4px', background: '#e2e8f0' }}>
+              <motion.div
+                animate={{ width: result ? '100%' : '0%' }}
+                style={{ height: '100%', background: '#0ea5e9' }}
+              />
+            </div>
+          </div>
+
           {/* Engine Status */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
@@ -398,7 +411,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Anomaly Detection */}
+          {/* Anomaly Detection
           <div style={{ border: '1px solid #CBD5E0', padding: '16px', background: 'rgba(0,0,0,0.01)' }}>
             <h4 className="mono" style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.12em', opacity: 0.5, marginBottom: '16px' }}>Anomaly Detection</h4>
             {[
@@ -412,7 +425,7 @@ export default function Dashboard() {
                 <span className="mono" style={{ fontSize: '10px' }}>{item.conf}</span>
               </div>
             ))}
-          </div>
+          </div> */}
 
           {/* Log */}
           <div style={{ marginTop: 'auto' }}>
