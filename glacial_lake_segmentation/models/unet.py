@@ -6,10 +6,8 @@ import torch.nn.functional as F
 def _conv_block(in_ch, out_ch):
     return nn.Sequential(
         nn.Conv2d(in_ch, out_ch, 3, padding=1),
-        nn.BatchNorm2d(out_ch),
         nn.ReLU(inplace=True),
         nn.Conv2d(out_ch, out_ch, 3, padding=1),
-        nn.BatchNorm2d(out_ch),
         nn.ReLU(inplace=True),
     )
 
@@ -40,7 +38,10 @@ class UNet(nn.Module):
         self.up1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
         self.dec1 = _conv_block(128, 64)
 
-        self.head = nn.Conv2d(64, 1, kernel_size=1)  # raw logits; sigmoid applied by loss/inference
+        self.head = nn.Sequential(
+            nn.Conv2d(64, 1, kernel_size=1),
+            nn.Sigmoid(),
+        )
 
         self._init_weights()
 
@@ -50,9 +51,6 @@ class UNet(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         e1 = self.enc1(x)

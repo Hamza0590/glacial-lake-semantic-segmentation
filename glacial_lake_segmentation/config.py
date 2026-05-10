@@ -11,7 +11,7 @@ RESULTS_DIR     = BASE_DIR / "results"
 
 # --- Training Hyperparameters (from paper Table I) ---
 IMAGE_SIZE    = (400, 400)   # Paper: Sentinel-2 tiles at 400×400 pixels (Bands 8,4,3)
-BATCH_SIZE    = 16
+BATCH_SIZE    = 8
 NUM_EPOCHS    = 25
 LEARNING_RATE = 1e-3
 NUM_WORKERS   = 4

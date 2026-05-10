@@ -31,11 +31,9 @@ def train_one_model(model_name: str, epochs: int, lr: float, batch_size: int):
     model = get_model(model_name)
     print(f"Parameters: {count_parameters(model):,}")
 
-    # Fix 3: weight_decay — paper specifies Adam but is silent on regularization
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=config.WEIGHT_DECAY)
-    # BCEWithLogitsLoss = numerically stable sigmoid + BCE via log-sum-exp trick;
-    # avoids log(0) explosions that occurred with BCELoss + saturated sigmoid outputs
-    criterion = torch.nn.BCEWithLogitsLoss()
+    # Models output probabilities (sigmoid in head); BCELoss matches the paper spec.
+    criterion = torch.nn.BCELoss()
 
     # Fix 2: ReduceLROnPlateau — paper specifies lr=0.001 as start; scheduler only
     # reduces it when val IoU plateaus, so it does not contradict the paper
@@ -43,19 +41,15 @@ def train_one_model(model_name: str, epochs: int, lr: float, batch_size: int):
         optimizer, mode="max", factor=0.5, patience=4, min_lr=1e-6
     )
 
-    # Sanity check: verify Sigmoid was removed (model must output unbounded logits)
+    # Sanity check: model must output probabilities in [0, 1] (sigmoid is in the head)
     model.eval()
     with torch.no_grad():
         _imgs, _ = next(iter(train_loader))
-        _raw = model(_imgs.to(config.DEVICE))
-        _prob = torch.sigmoid(_raw)
-        print(f"[Sanity] Logit range : [{_raw.min():.3f}, {_raw.max():.3f}]")
-        print(f"[Sanity] Sigmoid range: [{_prob.min():.4f}, {_prob.max():.4f}]")
-        # If Sigmoid is still inside the model, all raw outputs will be in [0, 1].
-        # Unbounded logits must have at least some values outside [0, 1].
-        assert not (_raw.min() >= 0.0 and _raw.max() <= 1.0), \
-            "Model outputs look like probabilities — Sigmoid may still be in the head"
-        print("[Sanity] ✓ Model outputs raw logits (Sigmoid correctly removed)")
+        _prob = model(_imgs.to(config.DEVICE))
+        print(f"[Sanity] Probability range: [{_prob.min():.4f}, {_prob.max():.4f}]")
+        assert _prob.min() >= 0.0 and _prob.max() <= 1.0, \
+            "Model outputs are outside [0, 1] — Sigmoid may be missing from the head"
+        print("[Sanity] ✓ Model outputs probabilities in [0, 1]")
     model.train()
 
     history = {
@@ -80,13 +74,13 @@ def train_one_model(model_name: str, epochs: int, lr: float, batch_size: int):
             masks  = masks.to(config.DEVICE)
 
             optimizer.zero_grad()
-            outputs = model(images)                         # raw logits
-            loss    = criterion(outputs, masks)             # BCEWithLogitsLoss: stable
+            outputs = model(images)                         # probabilities [0, 1]
+            loss    = criterion(outputs, masks)             # BCELoss
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-            preds   = torch.sigmoid(outputs.detach())       # sigmoid for metrics only
+            preds   = outputs.detach()
             batch_m = compute_batch_metrics(preds, masks)
             running_loss += loss.item()
             iou_acc.update(preds, masks)
@@ -110,10 +104,10 @@ def train_one_model(model_name: str, epochs: int, lr: float, batch_size: int):
             for images, masks in val_loader:
                 images  = images.to(config.DEVICE)
                 masks   = masks.to(config.DEVICE)
-                outputs = model(images)                     # raw logits
-                loss    = criterion(outputs, masks)         # stable loss
+                outputs = model(images)                     # probabilities [0, 1]
+                loss    = criterion(outputs, masks)         # BCELoss
                 val_running += loss.item()
-                preds   = torch.sigmoid(outputs)            # sigmoid for metrics
+                preds   = outputs
                 val_iou_acc.update(preds, masks)
                 val_f1_acc.update(preds, masks)
 

@@ -18,7 +18,10 @@ class SimpleCNN(nn.Module):
             nn.Conv2d(64, 32, 3, padding=1), nn.ReLU(inplace=True),
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
         )
-        self.head = nn.Conv2d(32, 1, 1)  # raw logits; sigmoid applied by loss/inference
+        self.head = nn.Sequential(
+            nn.Conv2d(32, 1, 1),
+            nn.Sigmoid(),
+        )
 
         self._init_weights()
 
