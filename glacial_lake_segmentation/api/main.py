@@ -195,11 +195,10 @@ async def predict(image: UploadFile, model_name: str = Form(...), extract_featur
             handles.append(model.aspp.fusion.register_forward_hook(get_hook("concat")))
 
     # ── Inference ─────────────────────────────────────────────────────────────
-    # Models output raw logits; sigmoid converts to probabilities [0, 1].
+    # Models output probabilities [0, 1] directly (sigmoid is in the head).
     # Threshold at 0.5 → binary mask {0, 1} as per paper.
     with torch.no_grad():
-        logits = model(tensor)                          # (1, 1, H, W) raw logits
-        probs  = torch.sigmoid(logits)                  # probabilities [0, 1]
+        probs = model(tensor)                           # (1, 1, H, W) probabilities [0, 1]
 
     for h in handles:
         h.remove()
@@ -265,7 +264,7 @@ def evaluate(model_name: str):
         for images, masks in val_loader:
             images = images.to(config.DEVICE)
             masks  = masks.to(config.DEVICE)
-            preds  = torch.sigmoid(model(images))       # probabilities
+            preds  = model(images)                      # probabilities (sigmoid in head)
             iou_acc.update(preds, masks)
             f1_acc.update(preds, masks)
             if len(sample_imgs) < 8:

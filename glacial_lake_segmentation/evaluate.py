@@ -38,7 +38,7 @@ def evaluate_model(model_name: str, checkpoint_path=None):
         for images, masks in val_loader:
             images  = images.to(config.DEVICE)
             masks   = masks.to(config.DEVICE)
-            preds   = torch.sigmoid(model(images))          # model outputs logits; sigmoid here
+            preds   = model(images)                         # model outputs probabilities
             iou_acc.update(preds, masks)
             f1_acc.update(preds, masks)
 

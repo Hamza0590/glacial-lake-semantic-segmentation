@@ -33,15 +33,14 @@ def preprocess_image_file(image_path) -> torch.Tensor:
 def run_inference(model, tensor: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns:
-        binary_np  : (H, W) uint8 array of {0, 1}  — the true binary mask
-        prob_np    : (H, W) float32 array of [0, 1] — raw sigmoid probabilities
-    Model outputs raw logits; sigmoid converts to probabilities;
-    threshold at config.THRESHOLD (0.5) produces the binary mask.
+        binary_np  : (H, W) uint8 array of {0, 1}  — the binary mask
+        prob_np    : (H, W) float32 array of [0, 1] — sigmoid probabilities
+    Models output probabilities directly (sigmoid is in the head).
+    Threshold at config.THRESHOLD (0.5) produces the binary mask.
     """
     with torch.no_grad():
-        logits   = model(tensor)                    # raw logits (unbounded)
-        prob_np  = torch.sigmoid(logits).squeeze().cpu().numpy()   # [0, 1]
-    binary_np = (prob_np >= config.THRESHOLD).astype(np.uint8)    # {0, 1}
+        prob_np = model(tensor).squeeze().cpu().numpy()        # [0, 1]
+    binary_np = (prob_np >= config.THRESHOLD).astype(np.uint8)  # {0, 1}
     return binary_np, prob_np
 
 
