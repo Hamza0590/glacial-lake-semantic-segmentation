@@ -1,13 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Satellite, Shield, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const [mousePos, setMousePos] = useState({ x: -1000, y: -1000 });
+
+  const handleMouseMove = (e) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseLeave = () => {
+    setMousePos({ x: -1000, y: -1000 });
+  };
 
   return (
-    <div className="landing-container min-h-screen relative flex flex-col items-center justify-center p-8 overflow-hidden grid-bg">
+    <div 
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="landing-container min-h-screen relative flex flex-col items-center justify-center p-8 overflow-hidden"
+      style={{ backgroundColor: '#fbf9f4' }}
+    >
+      {/* Base Grid Layer */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'linear-gradient(to right, #CBD5E0 1px, transparent 1px), linear-gradient(to bottom, #CBD5E0 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        opacity: 0.3,
+      }} />
+
+      {/* Interactive Bulge Layer */}
+      <div style={{
+        position: 'absolute', inset: -40,
+        backgroundImage: 'linear-gradient(to right, #b60058 1px, transparent 1px), linear-gradient(to bottom, #b60058 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        transform: 'scale(1.03)',
+        WebkitMaskImage: `radial-gradient(circle 350px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`,
+        maskImage: `radial-gradient(circle 350px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`,
+        pointerEvents: 'none',
+        opacity: 0.4,
+      }} />
       {/* Decorative Crosshair */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none opacity-20">
         <div className="absolute top-1/2 left-0 w-full h-[1px] bg-slate-400"></div>

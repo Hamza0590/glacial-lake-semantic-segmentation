@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [previewUrl,    setPreviewUrl]    = useState(null);
   const [result,        setResult]        = useState(null);
   const [viewMode,      setViewMode]      = useState('mask');
+  const [mousePos,      setMousePos]      = useState({ x: -1000, y: -1000 });
   const [logs,          setLogs]          = useState([
     '[04:12:01] SEED INITIALIZED (42)',
     '[04:12:02] READY FOR INFERENCE.',
@@ -79,6 +80,18 @@ export default function Dashboard() {
 
   const displaySrc = getDisplaySrc();
 
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMousePos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setMousePos({ x: -1000, y: -1000 });
+  };
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#fbf9f4' }}>
 
@@ -89,7 +102,7 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ color: '#b60058' }}><MapIcon size={24} /></div>
-          <div style={{ color: '#5b3f46', cursor: 'pointer' }}><Layers size={24} /></div>
+          <div style={{ color: '#5b3f46', cursor: 'pointer' }} onClick={() => navigate('/visualization')}><Layers size={24} /></div>
           <div style={{ color: '#5b3f46', cursor: 'pointer' }} onClick={() => navigate('/comparison')}><Activity size={24} /></div>
         </div>
         <div style={{ marginTop: 'auto' }}>
@@ -226,17 +239,40 @@ export default function Dashboard() {
         </div>
 
         {/* ── Image Frame ── */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '48px',
-          backgroundImage: 'linear-gradient(to right, #CBD5E0 1px, transparent 1px), linear-gradient(to bottom, #CBD5E0 1px, transparent 1px)',
-          backgroundSize: '20px 20px',
-          overflow: 'hidden',
-          position: 'relative',
-        }}>
+        <div 
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '48px',
+            backgroundColor: '#fbf9f4',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          {/* Base Grid Layer */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: 'linear-gradient(to right, #CBD5E0 1px, transparent 1px), linear-gradient(to bottom, #CBD5E0 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            opacity: 0.6,
+          }} />
+
+          {/* Interactive Bulge Layer */}
+          <div style={{
+            position: 'absolute', inset: -20,
+            backgroundImage: 'linear-gradient(to right, #b60058 1px, transparent 1px), linear-gradient(to bottom, #b60058 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            transform: 'scale(1.05)',
+            WebkitMaskImage: `radial-gradient(circle 200px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`,
+            maskImage: `radial-gradient(circle 200px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`,
+            pointerEvents: 'none',
+            opacity: 0.5,
+          }} />
+
           <div style={{
             position: 'relative',
             border: '1px solid #CBD5E0',

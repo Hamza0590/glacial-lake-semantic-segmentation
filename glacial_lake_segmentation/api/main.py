@@ -140,7 +140,7 @@ def health():
 
 
 @app.post("/predict", response_model=PredictionResponse)
-async def predict(image: UploadFile, model_name: str = Form(...)):
+async def predict(image: UploadFile, model_name: str = Form(...), extract_features: bool = Form(False)):
     ckpt_path = config.CHECKPOINT_DIR / f"{model_name}_best.pt"
     if not ckpt_path.exists():
         raise HTTPException(
@@ -157,12 +157,52 @@ async def predict(image: UploadFile, model_name: str = Form(...)):
     # ── Preprocessing (paper: 400×400, normalized to [0,1]) ──────────────────
     tensor = preprocess_image(pil_image)
 
+    feature_maps = {}
+    handles = []
+
+    if extract_features:
+        def get_hook(name):
+            def hook(module, inp, out):
+                act = out.detach().mean(dim=1).squeeze(0).cpu().numpy()
+                act_min, act_max = act.min(), act.max()
+                if act_max - act_min > 0:
+                    act_norm = (act - act_min) / (act_max - act_min) * 255.0
+                else:
+                    act_norm = act * 0
+                act_uint8 = act_norm.astype(np.uint8)
+                act_color = cv2.applyColorMap(act_uint8, cv2.COLORMAP_MAGMA)
+                act_color = cv2.cvtColor(act_color, cv2.COLOR_BGR2RGB)
+                
+                img_pil = Image.fromarray(act_color)
+                buf = io.BytesIO()
+                img_pil.save(buf, format="PNG")
+                feature_maps[name] = base64.b64encode(buf.getvalue()).decode()
+            return hook
+
+        if model_name == "simple_cnn":
+            handles.append(model.enc[2].register_forward_hook(get_hook("enc1")))
+            handles.append(model.enc[5].register_forward_hook(get_hook("enc2")))
+            handles.append(model.enc[8].register_forward_hook(get_hook("enc3")))
+            handles.append(model.dec[2].register_forward_hook(get_hook("dec1")))
+            handles.append(model.dec[5].register_forward_hook(get_hook("dec2")))
+        elif model_name == "aspp_segnet":
+            handles.append(model.enc3.register_forward_hook(get_hook("backbone")))
+            handles.append(model.aspp.b1.register_forward_hook(get_hook("b1")))
+            handles.append(model.aspp.b2.register_forward_hook(get_hook("b2")))
+            handles.append(model.aspp.b3.register_forward_hook(get_hook("b3")))
+            handles.append(model.aspp.b4.register_forward_hook(get_hook("b4")))
+            handles.append(model.aspp.b5_conv.register_forward_hook(get_hook("b5")))
+            handles.append(model.aspp.fusion.register_forward_hook(get_hook("concat")))
+
     # ── Inference ─────────────────────────────────────────────────────────────
     # Models output raw logits; sigmoid converts to probabilities [0, 1].
     # Threshold at 0.5 → binary mask {0, 1} as per paper.
     with torch.no_grad():
         logits = model(tensor)                          # (1, 1, H, W) raw logits
         probs  = torch.sigmoid(logits)                  # probabilities [0, 1]
+
+    for h in handles:
+        h.remove()
 
     binary    = (probs >= config.THRESHOLD).float()     # {0.0, 1.0}
     binary_np = binary.squeeze().cpu().numpy().astype(np.uint8)   # (H, W) {0, 1}
@@ -190,6 +230,7 @@ async def predict(image: UploadFile, model_name: str = Form(...)):
         mask_image_base64=mask_b64,
         colored_mask_base64=colored_mask_b64,
         overlay_image_base64=overlay_b64,
+        feature_maps=feature_maps if extract_features else None
     )
 
 

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from typing import Optional
 
 class PredictionResponse(BaseModel):
     model_name: str
@@ -7,6 +8,7 @@ class PredictionResponse(BaseModel):
     mask_image_base64: str        # base64-encoded grayscale PNG of binary mask (0/255)
     colored_mask_base64: str      # base64-encoded RGB PNG: lake=cyan, background=black
     overlay_image_base64: str     # base64-encoded RGB PNG with red contour overlay
+    feature_maps: Optional[dict[str, str]] = None  # Mapping of layer ID to base64 image
 
 
 class HealthResponse(BaseModel):
