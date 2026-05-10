@@ -10,7 +10,7 @@ CHECKPOINT_DIR  = BASE_DIR / "checkpoints"
 RESULTS_DIR     = BASE_DIR / "results"
 
 # --- Training Hyperparameters (from paper Table I) ---
-IMAGE_SIZE    = (256, 256)
+IMAGE_SIZE    = (400, 400)   # Paper: Sentinel-2 tiles at 400×400 pixels (Bands 8,4,3)
 BATCH_SIZE    = 16
 NUM_EPOCHS    = 25
 LEARNING_RATE = 1e-3

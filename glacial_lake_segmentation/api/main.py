@@ -32,10 +32,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+# Mount the entire static directory to serve assets like /assets/index.js
+app.mount("/assets", StaticFiles(directory=str(Path(__file__).parent / "static" / "assets")), name="assets")
 
 _model_cache: dict[str, torch.nn.Module] = {}
-
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -58,19 +58,61 @@ def load_model(model_name: str) -> torch.nn.Module:
 
 
 def preprocess_image(image: Image.Image) -> torch.Tensor:
+    """
+    Paper spec: 400×400 input tiles from Sentinel-2 (Bands 8, 4, 3),
+    normalized to [0, 1].  We accept any RGB upload and resize to match.
+    """
     image = image.convert("RGB").resize(
         (config.IMAGE_SIZE[1], config.IMAGE_SIZE[0]), Image.BILINEAR
     )
-    arr = np.array(image, dtype=np.float32) / 255.0
-    tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)
+    arr = np.array(image, dtype=np.float32) / 255.0   # normalize to [0, 1]
+    tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)  # (1,3,H,W)
     return tensor.to(config.DEVICE)
 
 
-def tensor_to_base64_png(tensor: torch.Tensor) -> str:
-    arr = tensor.squeeze().cpu().numpy()
-    if arr.max() <= 1.0:
-        arr = (arr * 255).astype(np.uint8)
-    img = Image.fromarray(arr.astype(np.uint8), mode="L")
+def binary_mask_to_base64(binary_np: np.ndarray) -> str:
+    """Return a grayscale PNG where lake pixels = 255, background = 0."""
+    mask_uint8 = (binary_np * 255).astype(np.uint8)
+    img = Image.fromarray(mask_uint8, mode="L")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def colored_mask_to_base64(binary_np: np.ndarray) -> str:
+    """
+    Return a color-mapped binary mask for visualization:
+      lake pixels    → bright cyan  (0, 220, 255)
+      background     → near-black   (10,  10,  20)
+    This matches the false-colour NIR composite feel of the paper.
+    """
+    h, w = binary_np.shape
+    rgb = np.zeros((h, w, 3), dtype=np.uint8)
+    rgb[binary_np == 0] = [10, 10, 20]       # background: near-black
+    rgb[binary_np == 1] = [0, 220, 255]      # lake: cyan
+    img = Image.fromarray(rgb, mode="RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def overlay_to_base64(orig_rgb: np.ndarray, binary_np: np.ndarray) -> str:
+    """
+    Draw red contours on the original image to show lake boundaries.
+    Uses a semi-transparent cyan fill for detected lake area + red contour.
+    """
+    overlay = orig_rgb.copy().astype(np.uint8)
+
+    # Semi-transparent cyan fill for lake region
+    lake_region = binary_np.astype(bool)
+    cyan = np.array([0, 220, 255], dtype=np.uint8)
+    overlay[lake_region] = (overlay[lake_region] * 0.45 + cyan * 0.55).astype(np.uint8)
+
+    # Red contour outline
+    contours, _ = cv2.findContours(binary_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(overlay, contours, -1, (255, 50, 50), 2)
+
+    img = Image.fromarray(overlay, mode="RGB")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode()
@@ -83,12 +125,7 @@ def rgb_array_to_base64_png(arr: np.ndarray) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-# ─── Endpoints ──────────────────────────────────────────────────────────────
-
-@app.get("/")
-def root():
-    return FileResponse(str(Path(__file__).parent / "static" / "index.html"))
-
+# ─── Routes ─────────────────────────────────────────────────────────────────
 
 @app.get("/health", response_model=HealthResponse)
 def health():
@@ -116,36 +153,42 @@ async def predict(image: UploadFile, model_name: str = Form(...)):
 
     contents = await image.read()
     pil_image = Image.open(io.BytesIO(contents))
+
+    # ── Preprocessing (paper: 400×400, normalized to [0,1]) ──────────────────
     tensor = preprocess_image(pil_image)
 
+    # ── Inference ─────────────────────────────────────────────────────────────
+    # Models output raw logits; sigmoid converts to probabilities [0, 1].
+    # Threshold at 0.5 → binary mask {0, 1} as per paper.
     with torch.no_grad():
-        preds = torch.sigmoid(model(tensor))                # model outputs logits; sigmoid here
+        logits = model(tensor)                          # (1, 1, H, W) raw logits
+        probs  = torch.sigmoid(logits)                  # probabilities [0, 1]
 
-    binary = (preds >= config.THRESHOLD).float()
-    binary_np = binary.squeeze().cpu().numpy().astype(np.uint8)
+    binary    = (probs >= config.THRESHOLD).float()     # {0.0, 1.0}
+    binary_np = binary.squeeze().cpu().numpy().astype(np.uint8)   # (H, W) {0, 1}
 
     total_pixels = binary_np.size
     lake_pixels  = int(binary_np.sum())
     coverage     = round(100.0 * lake_pixels / total_pixels, 4)
 
-    # Mask PNG (in memory)
-    mask_b64 = tensor_to_base64_png(binary)
-
-    # Overlay PNG (in memory)
-    orig = np.array(
+    # ── Resize original for overlays ─────────────────────────────────────────
+    orig_resized = np.array(
         pil_image.convert("RGB").resize(
             (config.IMAGE_SIZE[1], config.IMAGE_SIZE[0]), Image.BILINEAR
-        )
+        ),
+        dtype=np.uint8,
     )
-    overlay = orig.copy()
-    contours, _ = cv2.findContours(binary_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(overlay, contours, -1, (255, 0, 0), 2)
-    overlay_b64 = rgb_array_to_base64_png(overlay)
+
+    # ── Build response images ─────────────────────────────────────────────────
+    mask_b64         = binary_mask_to_base64(binary_np)          # pure B&W mask
+    colored_mask_b64 = colored_mask_to_base64(binary_np)         # cyan-on-black
+    overlay_b64      = overlay_to_base64(orig_resized, binary_np) # orig + cyan fill + red contour
 
     return PredictionResponse(
         model_name=model_name,
         lake_coverage_percent=coverage,
         mask_image_base64=mask_b64,
+        colored_mask_base64=colored_mask_b64,
         overlay_image_base64=overlay_b64,
     )
 
@@ -181,7 +224,7 @@ def evaluate(model_name: str):
         for images, masks in val_loader:
             images = images.to(config.DEVICE)
             masks  = masks.to(config.DEVICE)
-            preds  = torch.sigmoid(model(images))           # model outputs logits; sigmoid here
+            preds  = torch.sigmoid(model(images))       # probabilities
             iou_acc.update(preds, masks)
             f1_acc.update(preds, masks)
             if len(sample_imgs) < 8:
@@ -200,3 +243,11 @@ def evaluate(model_name: str):
         val_f1=round(f1_acc.compute(), 6),
         predictions_image_path=str(grid_path.relative_to(config.BASE_DIR)),
     )
+
+
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    static_file = Path(__file__).parent / "static" / full_path
+    if static_file.is_file():
+        return FileResponse(str(static_file))
+    return FileResponse(str(Path(__file__).parent / "static" / "index.html"))

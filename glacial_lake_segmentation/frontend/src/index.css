@@ -1,0 +1,122 @@
+:root {
+  /* Colors - Vellum Base */
+  --color-surface: #fbf9f4;
+  --color-surface-dim: #dbdad5;
+  --color-surface-bright: #fbf9f4;
+  --color-on-surface: #1b1c19;
+  --color-on-surface-variant: #5b3f46;
+
+  /* Primary & Secondary Accents */
+  --color-primary: #b60058; /* Infrared Pink */
+  --color-primary-bright: #ff3385;
+  --color-on-primary: #ffffff;
+  
+  --color-secondary: #006970; /* Synthetic Cyan */
+  --color-secondary-bright: #00f0ff;
+  --color-on-secondary: #ffffff;
+
+  /* Neutrals */
+  --color-outline: #8f6f76;
+  --color-outline-variant: #e3bdc5;
+  --color-background: #fbf9f4;
+  --color-on-background: #1b1c19;
+  --color-slate: #2D3748; /* Atmospheric Slate */
+  --color-topographic-ink: #CBD5E0;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing & Layout */
+  --unit: 4px;
+  --panel-width: 320px;
+  --border-width: 1px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Texture Overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image: url("https://www.transparenttextures.com/patterns/vellum_-_natural.png");
+  opacity: 0.15;
+  z-index: 9999;
+}
+
+/* Global Utilities */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.sharp-border {
+  border: var(--border-width) solid var(--color-topographic-ink);
+}
+
+.grid-bg {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, var(--color-topographic-ink) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-topographic-ink) 1px, transparent 1px);
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: var(--color-primary-bright);
+  color: var(--color-on-primary);
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 1px solid var(--color-on-surface);
+  color: var(--color-on-surface);
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary);
+}
+
+.btn-outline:hover {
+  background-color: rgba(0,0,0,0.05);
+}
